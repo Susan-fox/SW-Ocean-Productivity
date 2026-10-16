@@ -4,17 +4,39 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
   <title>Ocean Productivity Explorer | Signature Work</title>
-  <meta name="description" content="An interactive research dashboard exploring marine primary production and community respiration.">
+
+  <meta
+    name="description"
+    content="An interactive research dashboard exploring marine primary production and community respiration."
+  >
+
+  <!-- Main stylesheet -->
   <link rel="stylesheet" href="css/style.css">
+
+  <!-- D3.js v7 -->
+  <script src="https://cdn.jsdelivr.net/npm/d3@7/dist/d3.min.js"></script>
+
+  <!-- TopoJSON for world map boundaries -->
+  <script src="https://cdn.jsdelivr.net/npm/topojson-client@3/dist/topojson-client.min.js"></script>
 </head>
+
 <body>
+
+  <!-- Header -->
   <header>
     <h1>Ocean Productivity Explorer</h1>
-    <p>Interactive Visualization of Marine Primary Production and Community Respiration</p>
+
+    <p>
+      Interactive Visualization of Marine Primary Production
+      and Community Respiration
+    </p>
+
     <p>Signature Work Research Project</p>
   </header>
 
+  <!-- Navigation -->
   <nav>
     <a href="#overview">Overview</a>
     <a href="#map">Ocean Map</a>
@@ -22,59 +44,104 @@
     <a href="#models">Model Results</a>
   </nav>
 
+  <!-- Main Content -->
   <main>
+
+    <!-- Overview -->
     <section id="overview">
       <h2>Project Overview</h2>
+
       <p>
-        This project investigates marine gross primary production (GPP)
-        and community respiration (CR) using light-dark bottle observations.
-        The long-term goal is to integrate environmental variables,
-        including sea surface temperature (SST) and chlorophyll-a,
-        to improve predictive modeling.
+        This project investigates marine gross primary
+        production (GPP) and community respiration (CR)
+        using light-dark bottle observations.
+      </p>
+
+      <p>
+        The long-term goal is to integrate environmental
+        variables, including sea surface temperature (SST)
+        and chlorophyll-a, to improve predictive modeling
+        and better understand marine productivity patterns.
       </p>
 
       <h3>Current Dataset</h3>
-      <p>Original observations: 3,188</p>
-      <p>Observations after preliminary duplicate removal: 3,173</p>
-      <p>Primary outcomes: GPP and CR</p>
+
+      <p><strong>Original observations:</strong> 3,188</p>
+
+      <p>
+        <strong>Observations after preliminary duplicate removal:</strong>
+        3,173
+      </p>
+
+      <p>
+        <strong>Primary outcomes:</strong>
+        Gross Primary Production (GPP) and
+        Community Respiration (CR)
+      </p>
     </section>
 
+    <!-- Interactive Ocean Map -->
     <section id="map">
       <h2>Ocean Observation Map</h2>
+
       <p>
-        An interactive map of marine sampling locations
-        will be added here.
+        Explore the geographic distribution of marine
+        observations. Use the controls to switch between
+        GPP, CR, and NCP, filter by sampling year and depth,
+        and hover over individual observations.
       </p>
-      <div id="ocean-map"></div>
+
+      <div id="ocean-map">
+        <p>Loading ocean observations...</p>
+      </div>
     </section>
 
+    <!-- Data Explorer -->
     <section id="explorer">
       <h2>Data Explorer</h2>
+
       <p>
-        Explore distributions of GPP, CR, and NCP,
-        including transformations and filtering.
+        This section will visualize the distributions
+        of GPP, CR, and NCP, including comparisons
+        before and after log transformation.
       </p>
-      <div id="data-explorer"></div>
+
+      <div id="data-explorer">
+        <p>Interactive distribution charts coming soon.</p>
+      </div>
     </section>
 
+    <!-- Model Results -->
     <section id="models">
       <h2>Baseline Model Results</h2>
+
       <p>
-        Random Forest regression models are used to predict
-        log-transformed GPP and CR from spatial,
-        temporal, and depth-related features.
+        Random Forest regression models are used to
+        predict log-transformed GPP and CR using
+        latitude, longitude, depth, year, and month.
       </p>
+
       <p>
-        Updated model comparisons will be added after
+        The initial models use an 80/20 train-test split.
+        Updated results will be reported after
         validating the cleaned dataset.
       </p>
-      <div id="model-results"></div>
+
+      <div id="model-results">
+        <p>Model comparison charts coming soon.</p>
+      </div>
     </section>
+
   </main>
 
+  <!-- Footer -->
   <footer>
     <p>Ocean Productivity Explorer | Signature Work</p>
-    <p>Research dashboard under development</p>
+    <p>Interactive Marine Research Dashboard</p>
   </footer>
+
+  <!-- Our interactive visualization code -->
+  <script src="js/main.js"></script>
+
 </body>
 </html>
