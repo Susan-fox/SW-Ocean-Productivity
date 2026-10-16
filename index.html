@@ -1,0 +1,79 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Ocean Productivity Explorer | Signature Work</title>
+  <meta name="description" content="An interactive research dashboard exploring marine primary production and community respiration.">
+</head>
+<body>
+  <header>
+    <h1>Ocean Productivity Explorer</h1>
+    <p>Interactive Visualization of Marine Primary Production and Community Respiration</p>
+    <p>Signature Work Research Project</p>
+  </header>
+
+  <nav>
+    <a href="#overview">Overview</a>
+    <a href="#map">Ocean Map</a>
+    <a href="#explorer">Data Explorer</a>
+    <a href="#models">Model Results</a>
+  </nav>
+
+  <main>
+    <section id="overview">
+      <h2>Project Overview</h2>
+      <p>
+        This project investigates marine gross primary production (GPP)
+        and community respiration (CR) using light-dark bottle observations.
+        The long-term goal is to integrate environmental variables,
+        including sea surface temperature (SST) and chlorophyll-a,
+        to improve predictive modeling.
+      </p>
+
+      <h3>Current Dataset</h3>
+      <p>Original observations: 3,188</p>
+      <p>Observations after preliminary duplicate removal: 3,173</p>
+      <p>Primary outcomes: GPP and CR</p>
+    </section>
+
+    <section id="map">
+      <h2>Ocean Observation Map</h2>
+      <p>
+        An interactive map of marine sampling locations
+        will be added here.
+      </p>
+      <div id="ocean-map"></div>
+    </section>
+
+    <section id="explorer">
+      <h2>Data Explorer</h2>
+      <p>
+        Explore distributions of GPP, CR, and NCP,
+        including transformations and filtering.
+      </p>
+      <div id="data-explorer"></div>
+    </section>
+
+    <section id="models">
+      <h2>Baseline Model Results</h2>
+      <p>
+        Random Forest regression models are used to predict
+        log-transformed GPP and CR from spatial,
+        temporal, and depth-related features.
+      </p>
+      <p>
+        Updated model comparisons will be added after
+        validating the cleaned dataset.
+      </p>
+      <div id="model-results"></div>
+    </section>
+  </main>
+
+  <footer>
+    <p>Ocean Productivity Explorer | Signature Work</p>
+    <p>Research dashboard under development</p>
+  </footer>
+</body>
+</html>
