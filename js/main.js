@@ -1,43 +1,70 @@
 
 /*
  * Ocean Productivity Explorer
- * Interactive Map + EDA Explorer
- * D3.js v7
+ * Signature Work Research Dashboard
+ *
+ * Modules:
+ * 1. Interactive Ocean Map
+ * 2. EDA Data Explorer
+ * 3. Random Forest Baseline Results
+ *
+ * D3.js v7 + TopoJSON
  */
 
 const DATA_URL = "data/ocean_observations.csv";
 const WORLD_URL =
   "https://cdn.jsdelivr.net/npm/world-atlas@2/countries-110m.json";
 
+const MODEL_FILES = {
+  metrics: "data/baseline_metrics.csv",
+  predictions: "data/baseline_predictions.csv",
+  importance: "data/baseline_feature_importance.csv"
+};
+
+const COLORS = {
+  navy: "#102b46",
+  blue: "#247ca3",
+  aqua: "#39a8b5",
+  ocean: "#e8f4f8",
+  land: "#d5e1e7",
+  grid: "#d1e2e9",
+  muted: "#637989"
+};
+
 let observations = [];
 let worldLand = null;
 
-let activeMetric = "GPP";
-let selectedYear = "all";
-let maximumDepth = 10000;
+let mapMetric = "GPP";
+let mapYear = "all";
+let mapDepth = Infinity;
 
 let edaMetric = "GPP";
 let edaTransform = "raw";
 
-const formatNumber = d3.format(",.3f");
+let modelTarget = "GPP";
+let modelMetrics = [];
+let modelPredictions = [];
+let modelImportance = [];
 
-function formatValue(value) {
-  return Number.isFinite(value)
-    ? formatNumber(value)
-    : "N/A";
+const fmt = d3.format(",.3f");
+const fmtR2 = d3.format(".3f");
+const fmtPercent = d3.format(".1%");
+
+function numberText(value) {
+  return Number.isFinite(value) ? fmt(value) : "N/A";
 }
 
-function prepareData(rows) {
-  return rows.map((d, index) => ({
-    id: index + 1,
+function parseRows(rows) {
+  return rows.map((d, i) => ({
+    id: i + 1,
     Date: d.Date,
-    Lat: +d.Lat,
-    Lon: +d.Lon,
-    Depth: +d.Depth,
-    GPP: +d.GPP,
-    CR: +d.CR,
-    NCP: +d.NCP,
-    Year: d.Date.slice(0, 4)
+    Lat: Number(d.Lat),
+    Lon: Number(d.Lon),
+    Depth: Number(d.Depth),
+    GPP: Number(d.GPP),
+    CR: Number(d.CR),
+    NCP: Number(d.NCP),
+    Year: String(d.Date).slice(0, 4)
   })).filter(d =>
     Number.isFinite(d.Lat) &&
     Number.isFinite(d.Lon) &&
@@ -48,85 +75,101 @@ function prepareData(rows) {
   );
 }
 
-function addStyles() {
+function addDashboardStyles() {
   const style = document.createElement("style");
 
   style.textContent = `
     #ocean-map,
-    #data-explorer {
-      padding: 20px;
-      min-height: 300px;
+    #data-explorer,
+    #model-results {
+      padding: 22px;
+      min-height: 280px;
       background: #f8fcfe;
       border: 1px solid #d9e5ed;
       border-radius: 12px;
     }
 
-    .map-controls,
-    .eda-controls {
+    .viz-controls {
       display: flex;
       flex-wrap: wrap;
+      align-items: end;
       gap: 16px;
       margin-bottom: 20px;
     }
 
-    .control-group {
+    .viz-control {
       display: flex;
       flex-direction: column;
       gap: 6px;
     }
 
-    .control-group label {
+    .viz-control label {
       font-size: 13px;
       font-weight: 600;
       color: #164b70;
     }
 
-    .control-group select {
+    .viz-control select {
       padding: 9px 12px;
-      background: white;
       border: 1px solid #bfd5e0;
       border-radius: 7px;
+      background: white;
       color: #233747;
+      font-size: 14px;
     }
 
-    .stat-grid {
+    .viz-stats {
       display: flex;
       flex-wrap: wrap;
       gap: 12px;
-      margin-bottom: 18px;
+      margin-bottom: 20px;
     }
 
-    .stat-card {
+    .viz-stat {
       background: #eaf4f8;
       border-radius: 9px;
       padding: 12px 16px;
-      min-width: 130px;
+      min-width: 140px;
+      flex: 1;
     }
 
-    .stat-card span {
+    .viz-stat span {
       display: block;
-      font-size: 12px;
       color: #637989;
+      font-size: 12px;
     }
 
-    .stat-card strong {
+    .viz-stat strong {
       display: block;
       color: #164b70;
-      font-size: 20px;
-      margin-top: 3px;
+      font-size: 21px;
+      margin-top: 4px;
     }
 
-    .map-canvas,
-    .chart-canvas {
+    .viz-canvas {
       position: relative;
       width: 100%;
     }
 
-    .map-canvas svg,
-    .chart-canvas svg {
+    .viz-canvas svg {
       display: block;
       width: 100%;
       height: auto;
+    }
+
+    .viz-tooltip {
+      position: absolute;
+      pointer-events: none;
+      opacity: 0;
+      z-index: 50;
+      background: rgba(16,43,70,.96);
+      color: white;
+      padding: 12px 15px;
+      border-radius: 9px;
+      font-size: 12px;
+      line-height: 1.7;
+      max-width: 250px;
+      box-shadow: 0 5px 18px rgba(0,0,0,.18);
     }
 
     .observation-point {
@@ -138,32 +181,17 @@ function addStyles() {
       stroke-width: 2;
     }
 
-    .viz-tooltip {
-      position: absolute;
-      pointer-events: none;
-      z-index: 50;
-      opacity: 0;
-      background: rgba(16,43,70,.96);
-      color: white;
-      padding: 12px 15px;
-      border-radius: 9px;
-      font-size: 12px;
-      line-height: 1.7;
-      box-shadow: 0 5px 18px rgba(0,0,0,.18);
-      max-width: 260px;
-    }
-
-    .map-legend {
+    .viz-legend {
       display: flex;
       align-items: center;
       flex-wrap: wrap;
       gap: 10px;
       margin-top: 12px;
-      font-size: 12px;
       color: #637989;
+      font-size: 12px;
     }
 
-    .legend-gradient {
+    .viz-gradient {
       width: 180px;
       height: 12px;
       border-radius: 6px;
@@ -176,24 +204,35 @@ function addStyles() {
     }
 
     .viz-note {
-      font-size: 12px;
+      margin-top: 16px;
       color: #637989;
-      margin-top: 15px;
+      font-size: 12px;
+      line-height: 1.7;
     }
 
-    .axis text {
+    .viz-explanation {
+      background: #eaf4f8;
+      border-left: 4px solid #39a8b5;
+      padding: 15px;
+      border-radius: 8px;
+      color: #164b70;
+      font-size: 14px;
+      margin-top: 20px;
+    }
+
+    .viz-axis text {
       fill: #637989;
       font-size: 12px;
     }
 
-    .axis path,
-    .axis line {
+    .viz-axis path,
+    .viz-axis line {
       stroke: #cadce6;
     }
 
     .histogram-bar {
       fill: #247ca3;
-      stroke: #ffffff;
+      stroke: white;
       stroke-width: 1;
     }
 
@@ -201,28 +240,64 @@ function addStyles() {
       fill: #39a8b5;
     }
 
-    .eda-explanation {
-      margin-top: 20px;
-      padding: 16px;
-      background: #eaf4f8;
-      border-left: 4px solid #39a8b5;
-      border-radius: 8px;
+    .model-chart-grid {
+      display: grid;
+      grid-template-columns: repeat(
+        auto-fit,
+        minmax(min(100%, 350px), 1fr)
+      );
+      gap: 22px;
+      margin-top: 22px;
+    }
+
+    .model-chart-card {
+      min-width: 0;
+      background: white;
+      border: 1px solid #d9e5ed;
+      border-radius: 12px;
+      padding: 18px;
+    }
+
+    .model-chart-card h3 {
+      margin: 0 0 6px;
       color: #164b70;
-      font-size: 14px;
+      font-size: 17px;
+    }
+
+    .model-chart-card p {
+      font-size: 12px;
+      color: #637989;
+      margin: 0 0 14px;
+    }
+
+    .model-point {
+      fill: #247ca3;
+      fill-opacity: .45;
+      cursor: pointer;
+    }
+
+    .model-point:hover {
+      fill: #d66a3b;
+      fill-opacity: 1;
+    }
+
+    .importance-bar {
+      fill: #39a8b5;
     }
 
     .viz-error {
       color: #a12727;
-      padding: 20px;
+      padding: 15px;
     }
 
     @media (max-width: 700px) {
       #ocean-map,
-      #data-explorer {
+      #data-explorer,
+      #model-results {
         padding: 12px;
       }
 
-      .stat-card {
+      .viz-stat {
         min-width: 110px;
       }
     }
@@ -231,16 +306,15 @@ function addStyles() {
   document.head.appendChild(style);
 }
 
-function showTooltip(event, selector, html) {
-  const tooltip = d3.select(selector);
-  const parent = tooltip.node().parentElement;
+function tooltipMove(event, selector, content) {
+  const tip = d3.select(selector);
+  const parent = tip.node().parentElement;
   const rect = parent.getBoundingClientRect();
 
   const x = event.clientX - rect.left;
   const y = event.clientY - rect.top;
 
-  tooltip
-    .html(html)
+  tip.html(content)
     .style("opacity", 1)
     .style(
       "left",
@@ -249,20 +323,18 @@ function showTooltip(event, selector, html) {
     .style("top", `${Math.max(0, y - 30)}px`);
 }
 
-function hideTooltip(selector) {
+function tooltipHide(selector) {
   d3.select(selector).style("opacity", 0);
 }
 
-/* =====================================
-   MAP
-   ===================================== */
+/* ==========================================
+   MODULE 1: OCEAN MAP
+   ========================================== */
 
-function createMapInterface() {
-  const container = d3.select("#ocean-map");
-
-  container.html(`
-    <div class="map-controls">
-      <div class="control-group">
+function createMap() {
+  d3.select("#ocean-map").html(`
+    <div class="viz-controls">
+      <div class="viz-control">
         <label for="metric-select">Variable</label>
         <select id="metric-select">
           <option value="GPP">GPP</option>
@@ -271,17 +343,17 @@ function createMapInterface() {
         </select>
       </div>
 
-      <div class="control-group">
+      <div class="viz-control">
         <label for="year-select">Sampling Year</label>
         <select id="year-select">
           <option value="all">All years</option>
         </select>
       </div>
 
-      <div class="control-group">
+      <div class="viz-control">
         <label for="depth-select">Maximum Depth</label>
         <select id="depth-select">
-          <option value="10000">All depths</option>
+          <option value="all">All depths</option>
           <option value="10">0–10 m</option>
           <option value="50">0–50 m</option>
           <option value="100">0–100 m</option>
@@ -290,33 +362,33 @@ function createMapInterface() {
       </div>
     </div>
 
-    <div class="stat-grid">
-      <div class="stat-card">
+    <div class="viz-stats">
+      <div class="viz-stat">
         <span>Visible observations</span>
         <strong id="visible-count">0</strong>
       </div>
-      <div class="stat-card">
+      <div class="viz-stat">
         <span>Selected variable</span>
         <strong id="selected-variable">GPP</strong>
       </div>
     </div>
 
-    <div class="map-canvas" id="map-canvas">
+    <div class="viz-canvas" id="map-canvas">
       <div class="viz-tooltip" id="map-tooltip"></div>
     </div>
 
-    <div class="map-legend" id="map-legend"></div>
+    <div class="viz-legend" id="map-legend"></div>
 
     <p class="viz-note">
-      Colors represent the selected variable.
-      Hover over a sampling point to inspect its values.
-      Multiple observations may overlap.
+      Colors are scaled to the visible value range.
+      Multiple observations can overlap at the same
+      sampling location.
     </p>
   `);
 
-  const years = [...new Set(
-    observations.map(d => d.Year)
-  )].sort();
+  const years = [
+    ...new Set(observations.map(d => d.Year))
+  ].sort();
 
   d3.select("#year-select")
     .selectAll("option.year-option")
@@ -327,33 +399,33 @@ function createMapInterface() {
     .text(d => d);
 
   d3.select("#metric-select").on("change", function () {
-    activeMetric = this.value;
+    mapMetric = this.value;
     updateMap();
   });
 
   d3.select("#year-select").on("change", function () {
-    selectedYear = this.value;
+    mapYear = this.value;
     updateMap();
   });
 
   d3.select("#depth-select").on("change", function () {
-    maximumDepth = +this.value;
+    mapDepth = this.value === "all"
+      ? Infinity
+      : Number(this.value);
     updateMap();
   });
-}
 
-function filteredObservations() {
-  return observations.filter(d =>
-    (selectedYear === "all" || d.Year === selectedYear) &&
-    d.Depth <= maximumDepth
-  );
+  updateMap();
 }
 
 function updateMap() {
-  const data = filteredObservations();
+  const data = observations.filter(d =>
+    (mapYear === "all" || d.Year === mapYear) &&
+    d.Depth <= mapDepth
+  );
 
   d3.select("#visible-count").text(data.length);
-  d3.select("#selected-variable").text(activeMetric);
+  d3.select("#selected-variable").text(mapMetric);
 
   const width = 960;
   const height = 500;
@@ -371,42 +443,38 @@ function updateMap() {
 
   const svg = canvas.append("svg")
     .attr("viewBox", `0 0 ${width} ${height}`)
-    .attr("role", "img")
-    .attr("aria-label", "World map of marine observations");
+    .attr("aria-label", "Global ocean observation map");
 
   svg.append("path")
     .datum({ type: "Sphere" })
     .attr("d", path)
-    .attr("fill", "#e8f4f8");
+    .attr("fill", COLORS.ocean);
 
   svg.append("path")
     .datum(d3.geoGraticule10())
     .attr("d", path)
     .attr("fill", "none")
-    .attr("stroke", "#d1e2e9")
-    .attr("stroke-width", 0.7);
+    .attr("stroke", COLORS.grid)
+    .attr("stroke-width", .7);
 
   if (worldLand) {
     svg.append("path")
       .datum(worldLand)
       .attr("d", path)
-      .attr("fill", "#d5e1e7")
+      .attr("fill", COLORS.land)
       .attr("stroke", "#ffffff")
-      .attr("stroke-width", 0.6);
+      .attr("stroke-width", .6);
   }
 
   const values = data
-    .map(d => d[activeMetric])
+    .map(d => d[mapMetric])
     .filter(Number.isFinite);
 
-  const minValue = d3.min(values) ?? 0;
-  const maxValue = d3.max(values) ?? 1;
+  const min = d3.min(values) ?? 0;
+  const max = d3.max(values) ?? 1;
 
   const color = d3.scaleSequential()
-    .domain([
-      minValue,
-      maxValue === minValue ? minValue + 1 : maxValue
-    ])
+    .domain([min, max === min ? min + 1 : max])
     .interpolator(d3.interpolateRdYlBu)
     .clamp(true);
 
@@ -418,42 +486,40 @@ function updateMap() {
     .attr("cx", d => projection([d.Lon, d.Lat])[0])
     .attr("cy", d => projection([d.Lon, d.Lat])[1])
     .attr("r", 3)
-    .attr("fill", d => color(d[activeMetric]))
-    .attr("fill-opacity", 0.75)
-    .attr("stroke", "#ffffff")
-    .attr("stroke-width", 0.3)
+    .attr("fill", d => color(d[mapMetric]))
+    .attr("fill-opacity", .75)
+    .attr("stroke", "white")
+    .attr("stroke-width", .3)
     .on("mousemove", (event, d) => {
-      showTooltip(event, "#map-tooltip", `
+      tooltipMove(event, "#map-tooltip", `
         <strong>Observation ${d.id}</strong><br>
         Date: ${d.Date}<br>
-        Latitude: ${formatValue(d.Lat)}°<br>
-        Longitude: ${formatValue(d.Lon)}°<br>
-        Depth: ${formatValue(d.Depth)} m<br>
-        GPP: ${formatValue(d.GPP)}<br>
-        CR: ${formatValue(d.CR)}<br>
-        NCP: ${formatValue(d.NCP)}
+        Latitude: ${numberText(d.Lat)}°<br>
+        Longitude: ${numberText(d.Lon)}°<br>
+        Depth: ${numberText(d.Depth)} m<br>
+        GPP: ${numberText(d.GPP)}<br>
+        CR: ${numberText(d.CR)}<br>
+        NCP: ${numberText(d.NCP)}
       `);
     })
-    .on("mouseleave", () => hideTooltip("#map-tooltip"));
+    .on("mouseleave", () => tooltipHide("#map-tooltip"));
 
   d3.select("#map-legend").html(`
-    <span>${formatValue(minValue)}</span>
-    <div class="legend-gradient"></div>
-    <span>${formatValue(maxValue)}</span>
-    <span>${activeMetric}</span>
+    <span>${numberText(min)}</span>
+    <div class="viz-gradient"></div>
+    <span>${numberText(max)}</span>
+    <span>${mapMetric}</span>
   `);
 }
 
-/* =====================================
-   EDA EXPLORER
-   ===================================== */
+/* ==========================================
+   MODULE 2: EDA EXPLORER
+   ========================================== */
 
-function createEDAInterface() {
-  const container = d3.select("#data-explorer");
-
-  container.html(`
-    <div class="eda-controls">
-      <div class="control-group">
+function createEDA() {
+  d3.select("#data-explorer").html(`
+    <div class="viz-controls">
+      <div class="viz-control">
         <label for="eda-metric">Variable</label>
         <select id="eda-metric">
           <option value="GPP">GPP</option>
@@ -462,7 +528,7 @@ function createEDAInterface() {
         </select>
       </div>
 
-      <div class="control-group">
+      <div class="viz-control">
         <label for="eda-transform">Transformation</label>
         <select id="eda-transform">
           <option value="raw">Raw values</option>
@@ -471,30 +537,30 @@ function createEDAInterface() {
       </div>
     </div>
 
-    <div class="stat-grid">
-      <div class="stat-card">
+    <div class="viz-stats">
+      <div class="viz-stat">
         <span>Observations</span>
         <strong id="eda-count">0</strong>
       </div>
-      <div class="stat-card">
+      <div class="viz-stat">
         <span>Mean</span>
         <strong id="eda-mean">—</strong>
       </div>
-      <div class="stat-card">
+      <div class="viz-stat">
         <span>Median</span>
         <strong id="eda-median">—</strong>
       </div>
-      <div class="stat-card">
+      <div class="viz-stat">
         <span>Maximum</span>
         <strong id="eda-max">—</strong>
       </div>
     </div>
 
-    <div class="chart-canvas" id="eda-chart">
+    <div class="viz-canvas" id="eda-chart">
       <div class="viz-tooltip" id="eda-tooltip"></div>
     </div>
 
-    <div class="eda-explanation" id="eda-explanation"></div>
+    <div class="viz-explanation" id="eda-explanation"></div>
   `);
 
   d3.select("#eda-metric").on("change", function () {
@@ -502,7 +568,8 @@ function createEDAInterface() {
 
     if (edaMetric === "NCP") {
       edaTransform = "raw";
-      d3.select("#eda-transform").property("value", "raw");
+      d3.select("#eda-transform")
+        .property("value", "raw");
     }
 
     d3.select("#eda-transform")
@@ -516,6 +583,8 @@ function createEDAInterface() {
     edaTransform = this.value;
     updateEDA();
   });
+
+  updateEDA();
 }
 
 function updateEDA() {
@@ -527,18 +596,16 @@ function updateEDA() {
     .filter(d => !useLog || d >= 0)
     .map(d => useLog ? Math.log1p(d) : d);
 
-  const mean = d3.mean(values);
-  const median = d3.median(values);
-  const maximum = d3.max(values);
-
   d3.select("#eda-count").text(values.length);
-  d3.select("#eda-mean").text(formatValue(mean));
-  d3.select("#eda-median").text(formatValue(median));
-  d3.select("#eda-max").text(formatValue(maximum));
+  d3.select("#eda-mean")
+    .text(numberText(d3.mean(values)));
+  d3.select("#eda-median")
+    .text(numberText(d3.median(values)));
+  d3.select("#eda-max")
+    .text(numberText(d3.max(values)));
 
   const width = 900;
   const height = 420;
-
   const margin = {
     top: 30,
     right: 30,
@@ -550,30 +617,24 @@ function updateEDA() {
   canvas.selectAll("svg").remove();
 
   const svg = canvas.append("svg")
-    .attr("viewBox", `0 0 ${width} ${height}`)
-    .attr("role", "img")
-    .attr("aria-label", `Histogram of ${edaMetric}`);
+    .attr("viewBox", `0 0 ${width} ${height}`);
 
-  if (!values.length) {
-    d3.select("#eda-explanation")
-      .text("No valid observations available.");
-    return;
-  }
+  if (!values.length) return;
 
   const extent = d3.extent(values);
 
   const x = d3.scaleLinear()
-    .domain(extent[0] === extent[1]
-      ? [extent[0] - 0.5, extent[1] + 0.5]
-      : extent)
+    .domain(
+      extent[0] === extent[1]
+        ? [extent[0] - .5, extent[1] + .5]
+        : extent
+    )
     .nice()
     .range([margin.left, width - margin.right]);
 
-  const histogram = d3.bin()
+  const bins = d3.bin()
     .domain(x.domain())
-    .thresholds(x.ticks(35));
-
-  const bins = histogram(values);
+    .thresholds(x.ticks(35))(values);
 
   const y = d3.scaleLinear()
     .domain([0, d3.max(bins, d => d.length) || 1])
@@ -581,7 +642,7 @@ function updateEDA() {
     .range([height - margin.bottom, margin.top]);
 
   svg.append("g")
-    .attr("class", "axis")
+    .attr("class", "viz-axis")
     .attr(
       "transform",
       `translate(0,${height - margin.bottom})`
@@ -589,7 +650,7 @@ function updateEDA() {
     .call(d3.axisBottom(x).ticks(8));
 
   svg.append("g")
-    .attr("class", "axis")
+    .attr("class", "viz-axis")
     .attr("transform", `translate(${margin.left},0)`)
     .call(d3.axisLeft(y).ticks(6));
 
@@ -603,24 +664,22 @@ function updateEDA() {
     .attr("width", d =>
       Math.max(0, x(d.x1) - x(d.x0) - 2)
     )
-    .attr("height", d =>
-      y(0) - y(d.length)
-    )
+    .attr("height", d => y(0) - y(d.length))
     .on("mousemove", (event, d) => {
-      showTooltip(event, "#eda-tooltip", `
-        <strong>${edaMetric} Distribution</strong><br>
-        Range: ${formatValue(d.x0)}
-        to ${formatValue(d.x1)}<br>
-        Observations: ${d.length}
+      tooltipMove(event, "#eda-tooltip", `
+        <strong>${edaMetric}</strong><br>
+        Range: ${numberText(d.x0)}
+        to ${numberText(d.x1)}<br>
+        Count: ${d.length}
       `);
     })
-    .on("mouseleave", () => hideTooltip("#eda-tooltip"));
+    .on("mouseleave", () => tooltipHide("#eda-tooltip"));
 
   svg.append("text")
     .attr("x", width / 2)
     .attr("y", height - 15)
     .attr("text-anchor", "middle")
-    .attr("fill", "#164b70")
+    .attr("fill", COLORS.navy)
     .text(
       useLog
         ? `log1p(${edaMetric})`
@@ -632,49 +691,310 @@ function updateEDA() {
     .attr("x", -height / 2)
     .attr("y", 20)
     .attr("text-anchor", "middle")
-    .attr("fill", "#164b70")
+    .attr("fill", COLORS.navy)
     .text("Number of observations");
 
   const explanation = useLog
-    ? `
-      <strong>Log transformation:</strong>
-      log1p(x) = ln(1 + x) compresses large values
-      while retaining observations equal to zero.
-      This can make right-skewed distributions
-      easier to inspect.
-    `
+    ? "log1p(x) = ln(1 + x) compresses large values while retaining zeros. Statistics above are calculated on the transformed scale."
     : edaMetric === "NCP"
-    ? `
-      <strong>NCP distribution:</strong>
-      Net Community Production can be positive,
-      zero, or negative. Negative observations
-      are meaningful, so the log1p option is
-      disabled for NCP in this explorer.
-    `
-    : `
-      <strong>Raw distribution:</strong>
-      Large observations may create a long
-      right tail. Switch to log1p to examine
-      how the distribution changes.
-    `;
+      ? "NCP includes negative values, so this explorer displays its raw distribution."
+      : "Raw observations may be strongly right-skewed. Switch to log1p to inspect the distribution on a compressed scale.";
 
-  d3.select("#eda-explanation").html(explanation);
+  d3.select("#eda-explanation").text(explanation);
 }
 
-/* =====================================
+/* ==========================================
+   MODULE 3: MODEL RESULTS
+   ========================================== */
+
+function createModels() {
+  d3.select("#model-results").html(`
+    <div class="viz-controls">
+      <div class="viz-control">
+        <label for="model-target">Prediction target</label>
+        <select id="model-target">
+          <option value="GPP">GPP</option>
+          <option value="CR">CR</option>
+        </select>
+      </div>
+    </div>
+
+    <div class="viz-stats">
+      <div class="viz-stat">
+        <span>Test R² (log1p scale)</span>
+        <strong id="model-r2">—</strong>
+      </div>
+      <div class="viz-stat">
+        <span>Test RMSE (log1p scale)</span>
+        <strong id="model-rmse">—</strong>
+      </div>
+      <div class="viz-stat">
+        <span>Training samples</span>
+        <strong id="model-train">—</strong>
+      </div>
+      <div class="viz-stat">
+        <span>Testing samples</span>
+        <strong id="model-test">—</strong>
+      </div>
+    </div>
+
+    <div class="model-chart-grid">
+      <div class="model-chart-card">
+        <h3>Actual vs Predicted</h3>
+        <p>
+          Test observations on the log1p scale.
+          Dashed line represents perfect prediction.
+        </p>
+        <div class="viz-canvas" id="prediction-chart">
+          <div class="viz-tooltip" id="prediction-tooltip"></div>
+        </div>
+      </div>
+
+      <div class="model-chart-card">
+        <h3>Feature Importance</h3>
+        <p>
+          Random Forest impurity-based importance.
+          These values do not establish causality.
+        </p>
+        <div class="viz-canvas" id="importance-chart">
+          <div class="viz-tooltip" id="importance-tooltip"></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="viz-explanation">
+      <strong>Baseline setup:</strong>
+      Random Forest regression with 200 trees.
+      Predictors: latitude, longitude, depth,
+      year and month. Targets: log1p(GPP)
+      and log1p(CR). Random 80/20 train-test
+      split, seed 42, using 3,173 observations.
+      Results are preliminary and require
+      further spatial/temporal validation.
+    </div>
+  `);
+
+  d3.select("#model-target").on("change", function () {
+    modelTarget = this.value;
+    updateModels();
+  });
+
+  updateModels();
+}
+
+function updateModels() {
+  const metrics = modelMetrics.find(
+    d => d.target === modelTarget
+  );
+
+  if (!metrics) {
+    d3.select("#model-results").html(
+      '<p class="viz-error">Model metrics unavailable.</p>'
+    );
+    return;
+  }
+
+  d3.select("#model-r2").text(fmtR2(metrics.r2));
+  d3.select("#model-rmse")
+    .text(fmtR2(metrics.rmse_log1p));
+  d3.select("#model-train").text(metrics.train_n);
+  d3.select("#model-test").text(metrics.test_n);
+
+  drawPredictionChart();
+  drawImportanceChart();
+}
+
+function drawPredictionChart() {
+  const data = modelPredictions.filter(
+    d => d.target === modelTarget &&
+      Number.isFinite(d.actual_log1p) &&
+      Number.isFinite(d.predicted_log1p)
+  );
+
+  const width = 480;
+  const height = 440;
+
+  const margin = {
+    top: 25,
+    right: 20,
+    bottom: 65,
+    left: 65
+  };
+
+  const canvas = d3.select("#prediction-chart");
+  canvas.selectAll("svg").remove();
+
+  const svg = canvas.append("svg")
+    .attr("viewBox", `0 0 ${width} ${height}`);
+
+  if (!data.length) return;
+
+  const max = d3.max(data, d =>
+    Math.max(d.actual_log1p, d.predicted_log1p)
+  ) || 1;
+
+  const x = d3.scaleLinear()
+    .domain([0, max])
+    .nice()
+    .range([margin.left, width - margin.right]);
+
+  const y = d3.scaleLinear()
+    .domain(x.domain())
+    .range([height - margin.bottom, margin.top]);
+
+  svg.append("g")
+    .attr("class", "viz-axis")
+    .attr(
+      "transform",
+      `translate(0,${height - margin.bottom})`
+    )
+    .call(d3.axisBottom(x).ticks(6));
+
+  svg.append("g")
+    .attr("class", "viz-axis")
+    .attr("transform", `translate(${margin.left},0)`)
+    .call(d3.axisLeft(y).ticks(6));
+
+  svg.append("line")
+    .attr("x1", x(0))
+    .attr("y1", y(0))
+    .attr("x2", x(x.domain()[1]))
+    .attr("y2", y(x.domain()[1]))
+    .attr("stroke", "#d66a3b")
+    .attr("stroke-width", 2)
+    .attr("stroke-dasharray", "6,5");
+
+  svg.append("g")
+    .selectAll("circle")
+    .data(data)
+    .join("circle")
+    .attr("class", "model-point")
+    .attr("cx", d => x(d.actual_log1p))
+    .attr("cy", d => y(d.predicted_log1p))
+    .attr("r", 3.5)
+    .on("mousemove", (event, d) => {
+      tooltipMove(event, "#prediction-tooltip", `
+        <strong>${modelTarget} prediction</strong><br>
+        Date: ${d.Date}<br>
+        Actual (log1p): ${numberText(d.actual_log1p)}<br>
+        Predicted (log1p): ${numberText(d.predicted_log1p)}<br>
+        Actual (raw): ${numberText(d.actual_raw)}<br>
+        Predicted (raw): ${numberText(d.predicted_raw)}
+      `);
+    })
+    .on(
+      "mouseleave",
+      () => tooltipHide("#prediction-tooltip")
+    );
+
+  svg.append("text")
+    .attr("x", width / 2)
+    .attr("y", height - 15)
+    .attr("text-anchor", "middle")
+    .attr("fill", COLORS.navy)
+    .text(`Actual log1p(${modelTarget})`);
+
+  svg.append("text")
+    .attr("transform", "rotate(-90)")
+    .attr("x", -height / 2)
+    .attr("y", 17)
+    .attr("text-anchor", "middle")
+    .attr("fill", COLORS.navy)
+    .text(`Predicted log1p(${modelTarget})`);
+}
+
+function drawImportanceChart() {
+  const data = modelImportance
+    .filter(d => d.target === modelTarget)
+    .sort((a, b) => b.importance - a.importance);
+
+  const width = 480;
+  const height = 360;
+
+  const margin = {
+    top: 25,
+    right: 30,
+    bottom: 55,
+    left: 85
+  };
+
+  const canvas = d3.select("#importance-chart");
+  canvas.selectAll("svg").remove();
+
+  const svg = canvas.append("svg")
+    .attr("viewBox", `0 0 ${width} ${height}`);
+
+  if (!data.length) return;
+
+  const x = d3.scaleLinear()
+    .domain([
+      0,
+      (d3.max(data, d => d.importance) || 1) * 1.1
+    ])
+    .range([margin.left, width - margin.right]);
+
+  const y = d3.scaleBand()
+    .domain(data.map(d => d.feature))
+    .range([margin.top, height - margin.bottom])
+    .padding(.25);
+
+  svg.append("g")
+    .attr("class", "viz-axis")
+    .attr("transform", `translate(${margin.left},0)`)
+    .call(d3.axisLeft(y));
+
+  svg.append("g")
+    .attr("class", "viz-axis")
+    .attr(
+      "transform",
+      `translate(0,${height - margin.bottom})`
+    )
+    .call(d3.axisBottom(x).ticks(5));
+
+  svg.append("g")
+    .selectAll("rect")
+    .data(data)
+    .join("rect")
+    .attr("class", "importance-bar")
+    .attr("x", x(0))
+    .attr("y", d => y(d.feature))
+    .attr("width", d => x(d.importance) - x(0))
+    .attr("height", y.bandwidth())
+    .on("mousemove", (event, d) => {
+      tooltipMove(event, "#importance-tooltip", `
+        <strong>${d.feature}</strong><br>
+        Importance: ${numberText(d.importance)}<br>
+        Share: ${fmtPercent(d.importance)}
+      `);
+    })
+    .on(
+      "mouseleave",
+      () => tooltipHide("#importance-tooltip")
+    );
+
+  svg.append("text")
+    .attr("x", width / 2)
+    .attr("y", height - 12)
+    .attr("text-anchor", "middle")
+    .attr("fill", COLORS.navy)
+    .text("Impurity-based feature importance");
+}
+
+/* ==========================================
    INITIALIZATION
-   ===================================== */
+   ========================================== */
 
 async function initializeDashboard() {
-  addStyles();
+  addDashboardStyles();
 
+  // Load ocean observations and map boundaries.
   try {
     const [rows, world] = await Promise.all([
       d3.csv(DATA_URL),
       d3.json(WORLD_URL).catch(() => null)
     ]);
 
-    observations = prepareData(rows);
+    observations = parseRows(rows);
 
     if (world && typeof topojson !== "undefined") {
       worldLand = topojson.feature(
@@ -683,26 +1003,69 @@ async function initializeDashboard() {
       );
     }
 
-    createMapInterface();
-    updateMap();
-
-    createEDAInterface();
-    updateEDA();
+    createMap();
+    createEDA();
 
     console.log(
-      `Dashboard loaded: ${observations.length} observations`
+      `Ocean observations loaded: ${observations.length}`
     );
-
   } catch (error) {
-    console.error("Dashboard loading failed:", error);
+    console.error("Observation data error:", error);
 
     d3.select("#ocean-map").html(
-      '<p class="viz-error">Unable to load ocean data.</p>'
+      '<p class="viz-error">Unable to load ocean observations.</p>'
     );
 
     d3.select("#data-explorer").html(
-      '<p class="viz-error">Unable to load ocean data.</p>'
+      '<p class="viz-error">Unable to load ocean observations.</p>'
     );
+  }
+
+  // Load baseline model outputs independently.
+  try {
+    const [metrics, predictions, importance] =
+      await Promise.all([
+        d3.csv(MODEL_FILES.metrics),
+        d3.csv(MODEL_FILES.predictions),
+        d3.csv(MODEL_FILES.importance)
+      ]);
+
+    modelMetrics = metrics.map(d => ({
+      target: d.target,
+      r2: Number(d.r2),
+      rmse_log1p: Number(d.rmse_log1p),
+      train_n: Number(d.train_n),
+      test_n: Number(d.test_n)
+    }));
+
+    modelPredictions = predictions.map(d => ({
+      target: d.target,
+      Date: d.Date,
+      actual_log1p: Number(d.actual_log1p),
+      predicted_log1p: Number(d.predicted_log1p),
+      actual_raw: Number(d.actual_raw),
+      predicted_raw: Number(d.predicted_raw)
+    }));
+
+    modelImportance = importance.map(d => ({
+      target: d.target,
+      feature: d.feature,
+      importance: Number(d.importance)
+    }));
+
+    createModels();
+
+    console.log("Baseline model results loaded.");
+  } catch (error) {
+    console.error("Model data error:", error);
+
+    d3.select("#model-results").html(`
+      <p class="viz-error">
+        Unable to load baseline model files.
+        Please check that all three CSV files
+        are in the data folder.
+      </p>
+    `);
   }
 }
 
