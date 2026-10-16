@@ -1,0 +1,195 @@
+
+/* =========================================
+   Ocean Productivity Explorer
+   Signature Work Research Dashboard
+   ========================================= */
+
+:root {
+  --navy: #102b46;
+  --deep-blue: #164b70;
+  --ocean-blue: #247ca3;
+  --aqua: #39a8b5;
+  --pale-blue: #eaf4f8;
+  --background: #f4f8fb;
+  --white: #ffffff;
+  --text: #233747;
+  --muted: #637989;
+  --border: #d9e5ed;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  margin: 0;
+  font-family: "Segoe UI", Arial, sans-serif;
+  color: var(--text);
+  background: var(--background);
+  line-height: 1.7;
+}
+
+/* Header */
+
+header {
+  background: linear-gradient(
+    125deg,
+    var(--navy),
+    var(--deep-blue),
+    var(--ocean-blue)
+  );
+  color: var(--white);
+  text-align: center;
+  padding: 72px 24px;
+}
+
+header h1 {
+  font-size: clamp(2rem, 5vw, 3.2rem);
+  margin: 0 0 16px;
+  letter-spacing: -1px;
+}
+
+header p {
+  margin: 8px auto;
+  max-width: 780px;
+  color: #e0f3fb;
+}
+
+header p:last-child {
+  margin-top: 22px;
+  font-size: 0.85rem;
+  text-transform: uppercase;
+  letter-spacing: 2px;
+}
+
+/* Navigation */
+
+nav {
+  display: flex;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 10px;
+  background: var(--white);
+  padding: 14px 20px;
+  border-bottom: 1px solid var(--border);
+  position: sticky;
+  top: 0;
+  z-index: 100;
+  box-shadow: 0 3px 12px rgba(16, 43, 70, 0.05);
+}
+
+nav a {
+  text-decoration: none;
+  color: var(--deep-blue);
+  font-weight: 600;
+  padding: 9px 16px;
+  border-radius: 8px;
+  transition: background 0.2s, color 0.2s;
+}
+
+nav a:hover {
+  background: var(--pale-blue);
+  color: var(--ocean-blue);
+}
+
+/* Main content */
+
+main {
+  max-width: 1100px;
+  margin: 40px auto;
+  padding: 0 24px;
+}
+
+section {
+  background: var(--white);
+  padding: 36px;
+  margin-bottom: 28px;
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  box-shadow: 0 6px 24px rgba(16, 43, 70, 0.04);
+  scroll-margin-top: 100px;
+}
+
+section h2 {
+  color: var(--navy);
+  font-size: 1.65rem;
+  margin-top: 0;
+  margin-bottom: 16px;
+  padding-bottom: 12px;
+  border-bottom: 3px solid var(--aqua);
+}
+
+section h3 {
+  color: var(--deep-blue);
+  margin-top: 26px;
+}
+
+section p {
+  color: var(--muted);
+}
+
+/* Visualization containers */
+
+#ocean-map,
+#data-explorer,
+#model-results {
+  min-height: 180px;
+  margin-top: 22px;
+  border: 1px dashed #bfd5e0;
+  border-radius: 12px;
+  background: linear-gradient(
+    145deg,
+    #f5fbfd,
+    #eaf4f8
+  );
+}
+
+/* Footer */
+
+footer {
+  text-align: center;
+  background: var(--navy);
+  color: #d4e8f1;
+  padding: 30px 20px;
+  margin-top: 50px;
+}
+
+footer p {
+  margin: 5px 0;
+}
+
+/* Responsive layout */
+
+@media (max-width: 700px) {
+  header {
+    padding: 48px 20px;
+  }
+
+  nav {
+    gap: 4px;
+    padding: 10px;
+  }
+
+  nav a {
+    font-size: 0.85rem;
+    padding: 8px 10px;
+  }
+
+  main {
+    margin: 22px auto;
+    padding: 0 14px;
+  }
+
+  section {
+    padding: 22px;
+    border-radius: 12px;
+  }
+
+  section h2 {
+    font-size: 1.35rem;
+  }
+}
